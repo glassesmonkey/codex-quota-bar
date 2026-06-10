@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CryptoKit
 import ServiceManagement
 import SwiftUI
@@ -25,6 +26,7 @@ private func localized(_ key: String) -> String {
         "settings.startup_approval": "Approve it in System Settings > Login Items.",
         "settings.startup_missing": "Move the app into Applications before enabling.",
         "settings.startup_failed": "Unable to update login item: %@",
+        "settings.startup_attention": "Open at login needs approval",
         "tab.overview": "Overview",
         "tab.chart": "7d chart",
         "account.default": "Codex account",
@@ -88,6 +90,7 @@ private func localized(_ key: String) -> String {
         "settings.startup_approval": "请在系统设置 > 登录项中批准。",
         "settings.startup_missing": "请先把 app 放进“应用程序”再开启。",
         "settings.startup_failed": "无法更新登录项：%@",
+        "settings.startup_attention": "开机自启动需要批准",
         "tab.overview": "概览",
         "tab.chart": "7天图表",
         "account.default": "Codex 账号",
@@ -276,18 +279,21 @@ private struct QuotaSnapshot {
 private final class LaunchAtLoginController: ObservableObject {
     @Published var isEnabled = false
     @Published var detailText = localized("settings.startup_off")
+    @Published private(set) var status = SMAppService.mainApp.status
 
     init() {
         refresh()
     }
 
     func refresh() {
-        let status = SMAppService.mainApp.status
-        isEnabled = status == .enabled
-        detailText = detail(for: status)
+        let nextStatus = SMAppService.mainApp.status
+        status = nextStatus
+        isEnabled = nextStatus == .enabled
+        detailText = detail(for: nextStatus)
     }
 
-    func setEnabled(_ enabled: Bool) {
+    @discardableResult
+    func setEnabled(_ enabled: Bool) -> Bool {
         do {
             if enabled {
                 try SMAppService.mainApp.register()
@@ -295,9 +301,11 @@ private final class LaunchAtLoginController: ObservableObject {
                 try SMAppService.mainApp.unregister()
             }
             refresh()
+            return true
         } catch {
             refresh()
             detailText = String(format: localized("settings.startup_failed"), error.localizedDescription)
+            return false
         }
     }
 
@@ -689,16 +697,13 @@ private final class QuotaViewModel: ObservableObject {
 
 private struct QuotaMenuView: View {
     @EnvironmentObject private var model: QuotaViewModel
-    @StateObject private var launchAtLogin = LaunchAtLoginController()
     @State private var selectedTab = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             header
-            actions
             Divider()
             accountPanel
-            startupPanel
             Picker("", selection: $selectedTab) {
                 Text(localized("tab.overview")).tag(0)
                 Text(localized("tab.chart")).tag(1)
@@ -715,7 +720,6 @@ private struct QuotaMenuView: View {
         }
         .padding(14)
         .frame(width: 400)
-        .onAppear { launchAtLogin.refresh() }
     }
 
     private var header: some View {
@@ -731,18 +735,19 @@ private struct QuotaMenuView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Button { model.refresh() } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 13, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .frame(width: 28, height: 28)
+                    .background(.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
+            .disabled(model.snapshot.loading)
+            .opacity(model.snapshot.loading ? 0.42 : 1)
+            .help(localized("button.refresh"))
             StatusBadge(snapshot: model.snapshot)
-        }
-    }
-
-    private var actions: some View {
-        HStack(spacing: 8) {
-            Button(localized("button.refresh")) { model.refresh() }
-                .buttonStyle(FeedbackButtonStyle(kind: .normal))
-                .disabled(model.snapshot.loading)
-            Spacer()
-            Button(localized("button.quit")) { NSApplication.shared.terminate(nil) }
-                .buttonStyle(FeedbackButtonStyle(kind: .destructive))
         }
     }
 
@@ -777,31 +782,6 @@ private struct QuotaMenuView: View {
             return String(format: localized("account.auth_refreshed"), shortDateTime(date))
         }
         return model.snapshot.accountId ?? localized("app.subtitle")
-    }
-
-    private var startupPanel: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "power.circle")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(localized("settings.startup"))
-                    .font(.headline)
-                Text(launchAtLogin.detailText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer()
-            Toggle("", isOn: Binding(
-                get: { launchAtLogin.isEnabled },
-                set: { launchAtLogin.setEnabled($0) }
-            ))
-            .toggleStyle(.switch)
-            .labelsHidden()
-        }
-        .padding(10)
-        .background(.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
     }
 
     private var overview: some View {
@@ -1153,59 +1133,6 @@ private struct ChartCanvas: View {
     }
 }
 
-private enum FeedbackButtonKind {
-    case normal
-    case destructive
-}
-
-private struct FeedbackButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-    let kind: FeedbackButtonKind
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .foregroundStyle(foregroundColor(isHovered: false))
-            .background(background(configuration), in: RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(border(configuration), lineWidth: 1))
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .opacity(isEnabled ? 1 : 0.42)
-    }
-    private func foregroundColor(isHovered: Bool) -> Color {
-        switch kind {
-        case .normal: return .primary
-        case .destructive: return .red
-        }
-    }
-    private func background(_ configuration: Configuration) -> Color {
-        switch kind {
-        case .normal: return configuration.isPressed ? .accentColor.opacity(0.24) : .secondary.opacity(0.12)
-        case .destructive: return configuration.isPressed ? .red.opacity(0.24) : .red.opacity(0.10)
-        }
-    }
-    private func border(_ configuration: Configuration) -> Color {
-        switch kind {
-        case .normal: return configuration.isPressed ? .accentColor.opacity(0.60) : .secondary.opacity(0.22)
-        case .destructive: return .red.opacity(configuration.isPressed ? 0.70 : 0.35)
-        }
-    }
-}
-
-private struct MenuBarQuotaLabel: View {
-    let title: String
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "terminal.fill")
-                .font(.system(size: 12.5, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-            Text(title)
-                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
-        }
-    }
-}
-
 private func runOnce() -> Int32 {
     let authStore = AuthStore()
     let usageClient = UsageClient()
@@ -1251,10 +1178,144 @@ private func runOnce() -> Int32 {
     return exitCode
 }
 
+@MainActor
+private final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var statusBarController: StatusBarController?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        statusBarController = StatusBarController()
+    }
+}
+
+@MainActor
+private final class StatusBarController: NSObject {
+    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private let popover = NSPopover()
+    private let model = QuotaViewModel()
+    private let launchAtLogin = LaunchAtLoginController()
+    private var cancellables: Set<AnyCancellable> = []
+
+    override init() {
+        super.init()
+        configureStatusButton()
+        configurePopover()
+        bindStatusTitle()
+    }
+
+    private func configureStatusButton() {
+        guard let button = statusItem.button else { return }
+        button.target = self
+        button.action = #selector(statusButtonClicked(_:))
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.image = NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: localized("app.title"))
+        button.image?.isTemplate = true
+        button.imagePosition = .imageLeading
+        button.font = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .medium)
+        updateStatusButton()
+    }
+
+    private func configurePopover() {
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentViewController = NSHostingController(
+            rootView: QuotaMenuView()
+                .environmentObject(model)
+        )
+    }
+
+    private func bindStatusTitle() {
+        model.$snapshot
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusButton() }
+            .store(in: &cancellables)
+    }
+
+    private func updateStatusButton() {
+        statusItem.button?.title = " \(model.menuBarMeterTitle)"
+    }
+
+    @objc private func statusButtonClicked(_ sender: NSStatusBarButton) {
+        switch NSApp.currentEvent?.type {
+        case .rightMouseUp:
+            showManagementMenu(anchor: sender)
+        default:
+            togglePopover(anchor: sender)
+        }
+    }
+
+    private func togglePopover(anchor: NSStatusBarButton) {
+        if popover.isShown {
+            popover.performClose(nil)
+        } else {
+            model.refresh()
+            popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+        }
+    }
+
+    private func showManagementMenu(anchor: NSStatusBarButton) {
+        popover.performClose(nil)
+        launchAtLogin.refresh()
+
+        let menu = NSMenu()
+        let startupItem = NSMenuItem(
+            title: startupMenuTitle,
+            action: #selector(toggleLaunchAtLogin(_:)),
+            keyEquivalent: ""
+        )
+        startupItem.target = self
+        startupItem.state = launchAtLogin.isEnabled ? .on : .off
+        menu.addItem(startupItem)
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(
+            title: localized("button.quit"),
+            action: #selector(quit(_:)),
+            keyEquivalent: "q"
+        )
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        menu.popUp(positioning: startupItem, at: NSPoint(x: 0, y: anchor.bounds.height + 4), in: anchor)
+    }
+
+    private var startupMenuTitle: String {
+        switch launchAtLogin.status {
+        case .requiresApproval:
+            return localized("settings.startup_attention")
+        default:
+            return localized("settings.startup")
+        }
+    }
+
+    @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {
+        let targetValue = !launchAtLogin.isEnabled
+        _ = launchAtLogin.setEnabled(targetValue)
+        showLaunchAtLoginMessageIfNeeded()
+    }
+
+    private func showLaunchAtLoginMessageIfNeeded() {
+        switch launchAtLogin.status {
+        case .requiresApproval, .notFound:
+            let alert = NSAlert()
+            alert.messageText = localized("settings.startup")
+            alert.informativeText = launchAtLogin.detailText
+            alert.alertStyle = .informational
+            alert.runModal()
+        default:
+            break
+        }
+    }
+
+    @objc private func quit(_ sender: NSMenuItem) {
+        NSApplication.shared.terminate(nil)
+    }
+}
+
 @main
 @MainActor
 private struct CodexQuotaBarApp: App {
-    @StateObject private var model = QuotaViewModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
         if CommandLine.arguments.contains("--once") {
@@ -1263,12 +1324,8 @@ private struct CodexQuotaBarApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra {
-            QuotaMenuView()
-                .environmentObject(model)
-        } label: {
-            MenuBarQuotaLabel(title: model.menuBarMeterTitle)
+        Settings {
+            EmptyView()
         }
-        .menuBarExtraStyle(.window)
     }
 }
