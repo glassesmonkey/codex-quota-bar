@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROJECT_DIR="$ROOT_DIR/CodexQuotaBar"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_DIR="$ROOT_DIR"
 BUILD_DIR="$ROOT_DIR/work/build/CodexQuotaBar"
 OUTPUT_DIR="$ROOT_DIR/outputs"
 APP_DIR="$OUTPUT_DIR/CodexQuotaBar.app"
@@ -12,8 +12,8 @@ MIN_MACOS_VERSION="13.0"
 DEVELOPER_DIR_PATH="$(xcode-select -p)"
 if [[ "$DEVELOPER_DIR_PATH" == "/Library/Developer/CommandLineTools" ]]; then
     cat >&2 <<'EOF'
-SwiftUI MenuBarExtra builds require full Xcode on this machine.
-The Command Line Tools swiftc hangs while compiling even a minimal SwiftUI menu bar app.
+Codex Quota Bar's SwiftUI/AppKit build requires full Xcode on this machine.
+The Command Line Tools swiftc hangs while compiling even a minimal menu bar app.
 
 Install Xcode, then run:
   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
