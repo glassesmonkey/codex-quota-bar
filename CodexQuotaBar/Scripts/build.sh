@@ -9,22 +9,32 @@ APP_DIR="$OUTPUT_DIR/CodexQuotaBar.app"
 EXECUTABLE_NAME="CodexQuotaBar"
 MIN_MACOS_VERSION="13.0"
 
+DEVELOPER_DIR_PATH="$(xcode-select -p)"
+if [[ "$DEVELOPER_DIR_PATH" == "/Library/Developer/CommandLineTools" ]]; then
+    cat >&2 <<'EOF'
+SwiftUI MenuBarExtra builds require full Xcode on this machine.
+The Command Line Tools swiftc hangs while compiling even a minimal SwiftUI menu bar app.
+
+Install Xcode, then run:
+  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+EOF
+    exit 1
+fi
+
 SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
-SOURCE_FILES=("$PROJECT_DIR"/Sources/CodexQuotaBar/*.m)
+SOURCE_FILES=("$PROJECT_DIR"/Sources/CodexQuotaBar/*.swift)
 
 build_arch() {
     local arch="$1"
     local arch_dir="$BUILD_DIR/$arch"
     mkdir -p "$arch_dir"
 
-    xcrun clang \
-        -fobjc-arc \
-        -fblocks \
-        -mmacosx-version-min="$MIN_MACOS_VERSION" \
-        -isysroot "$SDK_PATH" \
-        -arch "$arch" \
+    xcrun swiftc \
+        -Onone \
+        -parse-as-library \
+        -target "$arch-apple-macos$MIN_MACOS_VERSION" \
+        -sdk "$SDK_PATH" \
         "${SOURCE_FILES[@]}" \
-        -framework Cocoa \
         -o "$arch_dir/$EXECUTABLE_NAME"
 }
 

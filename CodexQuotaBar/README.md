@@ -2,7 +2,7 @@
 
 A small native macOS menu bar app for watching Codex quota usage from `~/.codex/auth.json`.
 
-It reads the current Codex access token and account id, calls `https://chatgpt.com/backend-api/wham/usage`, and shows the 5-hour and 7-day remaining quota in the menu bar. The popover shows reset times, plan, account metadata, refresh status, and quick actions.
+It reads the current Codex access token and account id, calls `https://chatgpt.com/backend-api/wham/usage`, and shows the 5-hour and 7-day remaining quota in the menu bar. The popover shows reset times, plan, account metadata, refresh status, quick actions, and a chart of this cycle's 7-day quota usage.
 
 The app stores local quota history at:
 
@@ -14,9 +14,11 @@ History records contain quota percentages, reset timestamps, and a hashed accoun
 
 The planning forecast uses the 7-day usage trend for depletion timing and the 5-hour window as a burst-pressure signal. It ignores reset drops, filters implausible spikes, weights recent samples more heavily, and falls back to a low-confidence current-cycle estimate until enough history exists.
 
-The popover uses the native macOS `NSVisualEffectView` popover material for frosted-glass styling. Visible UI copy automatically switches between Chinese and English based on the current system language.
+The popover is built with SwiftUI `MenuBarExtra` using `.menuBarExtraStyle(.window)`, so macOS provides the native glass window effect. Visible UI copy automatically switches between Chinese and English based on the current system language.
 
 ## Build
+
+Building the SwiftUI app requires full Xcode, not Command Line Tools only.
 
 ```sh
 ./CodexQuotaBar/Scripts/build.sh
