@@ -2,6 +2,10 @@
 
 Native macOS menu bar app for watching Codex quota usage from the local Codex session.
 
+## Preview / 效果图
+
+![Codex Quota Bar preview](Resources/Preview.png)
+
 [中文说明](#中文说明)
 
 ## English
