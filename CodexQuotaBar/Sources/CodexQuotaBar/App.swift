@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import ServiceManagement
 import SwiftUI
 
 private let usageEndpoint = URL(string: "https://chatgpt.com/backend-api/wham/usage")!
@@ -18,6 +19,12 @@ private func localized(_ key: String) -> String {
         "status.live": "LIVE",
         "button.refresh": "Refresh",
         "button.quit": "Quit",
+        "settings.startup": "Open at login",
+        "settings.startup_on": "Codex Quota Bar will start after you sign in.",
+        "settings.startup_off": "Keep it manual unless you enable this.",
+        "settings.startup_approval": "Approve it in System Settings > Login Items.",
+        "settings.startup_missing": "Move the app into Applications before enabling.",
+        "settings.startup_failed": "Unable to update login item: %@",
         "tab.overview": "Overview",
         "tab.chart": "7d chart",
         "account.default": "Codex account",
@@ -31,6 +38,7 @@ private func localized(_ key: String) -> String {
         "chart.title": "7-day usage in this cycle",
         "chart.empty": "Refresh a few times to build the chart.",
         "chart.used": "%ld%% used",
+        "chart.axis.used_percent": "Used %",
         "chart.points": "%ld samples",
         "panel.planning": "Planning outlook",
         "footer.updated": "Updated %@%@",
@@ -74,6 +82,12 @@ private func localized(_ key: String) -> String {
         "status.live": "在线",
         "button.refresh": "刷新",
         "button.quit": "退出",
+        "settings.startup": "开机自启动",
+        "settings.startup_on": "登录后会自动启动 Codex 额度。",
+        "settings.startup_off": "默认手动启动，需要时可打开。",
+        "settings.startup_approval": "请在系统设置 > 登录项中批准。",
+        "settings.startup_missing": "请先把 app 放进“应用程序”再开启。",
+        "settings.startup_failed": "无法更新登录项：%@",
         "tab.overview": "概览",
         "tab.chart": "7天图表",
         "account.default": "Codex 账号",
@@ -87,6 +101,7 @@ private func localized(_ key: String) -> String {
         "chart.title": "本周期7天额度消耗",
         "chart.empty": "多刷新几次后会形成图表。",
         "chart.used": "已用 %ld%%",
+        "chart.axis.used_percent": "已用 %",
         "chart.points": "%ld 个采样",
         "panel.planning": "用量规划",
         "footer.updated": "已更新 %@%@",
@@ -255,6 +270,51 @@ private struct QuotaSnapshot {
     var errorMessage: String?
     var loading = false
     var usedProxy = false
+}
+
+@MainActor
+private final class LaunchAtLoginController: ObservableObject {
+    @Published var isEnabled = false
+    @Published var detailText = localized("settings.startup_off")
+
+    init() {
+        refresh()
+    }
+
+    func refresh() {
+        let status = SMAppService.mainApp.status
+        isEnabled = status == .enabled
+        detailText = detail(for: status)
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            refresh()
+        } catch {
+            refresh()
+            detailText = String(format: localized("settings.startup_failed"), error.localizedDescription)
+        }
+    }
+
+    private func detail(for status: SMAppService.Status) -> String {
+        switch status {
+        case .enabled:
+            return localized("settings.startup_on")
+        case .requiresApproval:
+            return localized("settings.startup_approval")
+        case .notFound:
+            return localized("settings.startup_missing")
+        case .notRegistered:
+            return localized("settings.startup_off")
+        @unknown default:
+            return localized("settings.startup_off")
+        }
+    }
 }
 
 private enum AppError: LocalizedError {
@@ -629,6 +689,7 @@ private final class QuotaViewModel: ObservableObject {
 
 private struct QuotaMenuView: View {
     @EnvironmentObject private var model: QuotaViewModel
+    @StateObject private var launchAtLogin = LaunchAtLoginController()
     @State private var selectedTab = 0
 
     var body: some View {
@@ -637,6 +698,7 @@ private struct QuotaMenuView: View {
             actions
             Divider()
             accountPanel
+            startupPanel
             Picker("", selection: $selectedTab) {
                 Text(localized("tab.overview")).tag(0)
                 Text(localized("tab.chart")).tag(1)
@@ -653,6 +715,7 @@ private struct QuotaMenuView: View {
         }
         .padding(14)
         .frame(width: 400)
+        .onAppear { launchAtLogin.refresh() }
     }
 
     private var header: some View {
@@ -714,6 +777,31 @@ private struct QuotaMenuView: View {
             return String(format: localized("account.auth_refreshed"), shortDateTime(date))
         }
         return model.snapshot.accountId ?? localized("app.subtitle")
+    }
+
+    private var startupPanel: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "power.circle")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(localized("settings.startup"))
+                    .font(.headline)
+                Text(launchAtLogin.detailText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { launchAtLogin.isEnabled },
+                set: { launchAtLogin.setEnabled($0) }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+        .padding(10)
+        .background(.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
     }
 
     private var overview: some View {
@@ -910,7 +998,13 @@ private struct ChartCanvas: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let rect = CGRect(x: 8, y: 12, width: proxy.size.width - 16, height: proxy.size.height - 42)
+            let yAxisWidth: CGFloat = 42
+            let rect = CGRect(
+                x: yAxisWidth,
+                y: 22,
+                width: proxy.size.width - yAxisWidth - 8,
+                height: proxy.size.height - 54
+            )
             let first = points.first?.date.timeIntervalSince1970 ?? 0
             let last = points.last?.date.timeIntervalSince1970 ?? first + 60
             let span = max(60, last - first)
@@ -922,12 +1016,28 @@ private struct ChartCanvas: View {
                 )
             }
             Canvas { context, _ in
+                context.draw(
+                    Text(localized("chart.axis.used_percent"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.secondary),
+                    at: CGPoint(x: rect.minX, y: 2),
+                    anchor: .topLeading
+                )
+
                 for index in 0...4 {
                     let y = rect.maxY - rect.height * CGFloat(index) / 4
+                    let value = index * 25
                     var grid = Path()
                     grid.move(to: CGPoint(x: rect.minX, y: y))
                     grid.addLine(to: CGPoint(x: rect.maxX, y: y))
                     context.stroke(grid, with: .color(.secondary.opacity(0.28)), lineWidth: 1)
+                    context.draw(
+                        Text("\(value)%")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(.secondary),
+                        at: CGPoint(x: rect.minX - 8, y: y),
+                        anchor: .trailing
+                    )
                 }
 
                 let line = smoothPath(points: chartPoints)
@@ -945,6 +1055,7 @@ private struct ChartCanvas: View {
                 Spacer()
                 HStack {
                     Text(shortDateTime(points.first!.date))
+                        .padding(.leading, yAxisWidth)
                     Spacer()
                     Text(shortDateTime(points.last!.date))
                 }

@@ -50,6 +50,11 @@ lipo -create \
     -output "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 
 cp "$PROJECT_DIR/Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
+for resource in "$PROJECT_DIR"/Resources/*; do
+    [[ "$(basename "$resource")" == "Info.plist" ]] && continue
+    [[ "$(basename "$resource")" == "AppIcon.png" ]] && continue
+    cp "$resource" "$APP_DIR/Contents/Resources/"
+done
 chmod +x "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 
 codesign --force --sign - "$APP_DIR" >/dev/null
