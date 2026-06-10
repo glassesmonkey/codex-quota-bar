@@ -26,6 +26,128 @@ static NSNumber *CleanNumber(id value) {
     return nil;
 }
 
+static BOOL AppUsesChinese(void) {
+    NSString *language = NSLocale.preferredLanguages.firstObject.lowercaseString ?: @"";
+    return [language hasPrefix:@"zh"];
+}
+
+static NSString *L(NSString *key) {
+    static NSDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *tables;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        tables = @{
+            @"en": @{
+                @"reset.unavailable": @"Reset time unavailable",
+                @"reset.in.at": @"Reset in %@ at %@",
+                @"auth.missing_token": @"auth.json is missing tokens.access_token",
+                @"auth.expired": @"Codex auth is expired or not accepted (HTTP %ld)",
+                @"usage.http_failed": @"Usage request failed with HTTP %ld",
+                @"usage.not_json": @"Usage response was not JSON",
+                @"prediction.collecting": @"Collecting planning data",
+                @"prediction.collecting_detail": @"A few refreshes will make the forecast steadier.",
+                @"prediction.pace_empty": @"Pace --",
+                @"prediction.low": @"Low confidence",
+                @"prediction.medium": @"Medium confidence",
+                @"prediction.high": @"High confidence",
+                @"prediction.no_trend": @"No burn trend yet",
+                @"prediction.no_trend_detail": @"7d usage has not increased enough to project depletion.",
+                @"prediction.pace_zero": @"Pace 0%/h",
+                @"prediction.early_empty": @"Early estimate: empty in %@",
+                @"prediction.early_reset": @"Early estimate: lasts through reset",
+                @"prediction.early_before_detail": @"Based on the current cycle only; empty around %@ if this pace holds.",
+                @"prediction.early_after_detail": @"Based on the current cycle only; empty in %@ after reset.",
+                @"prediction.runout": @"7d runout in %@",
+                @"prediction.lasts_reset": @"7d likely lasts through reset",
+                @"prediction.before_detail": @"Projected empty around %@, before the current reset.",
+                @"prediction.after_detail": @"At this pace, empty in %@, after the current reset.",
+                @"prediction.pace": @"Pace %.2f%%/h",
+                @"burst.unknown": @"5h burst unknown",
+                @"burst.high": @"5h burst high",
+                @"burst.moderate": @"5h burst moderate",
+                @"burst.calm": @"5h burst calm",
+                @"dial.left": @"left",
+                @"quota.used": @"%ld%% used",
+                @"quota.no_data": @"No data",
+                @"panel.planning": @"Planning outlook",
+                @"app.title": @"Codex Quota",
+                @"app.current_account": @"CURRENT ACCOUNT",
+                @"account.default": @"Codex account",
+                @"account.auth_refreshed": @"Auth refreshed %@",
+                @"window.fast": @"Fast window",
+                @"window.weekly": @"Weekly window",
+                @"button.refresh": @"Refresh",
+                @"button.auth": @"Auth",
+                @"button.quit": @"Quit",
+                @"status.sync": @"SYNC",
+                @"status.check": @"CHECK",
+                @"status.proxy": @"PROXY",
+                @"status.live": @"LIVE",
+                @"footer.updated": @"Updated %@%@",
+                @"footer.via_proxy": @" via proxy",
+                @"footer.reading": @"Reading Codex quota",
+                @"footer.waiting": @"Waiting for data",
+                @"error.unable_auth": @"Unable to read Codex auth.json",
+                @"error.unable_auth_short": @"Unable to read auth",
+            },
+            @"zh": @{
+                @"reset.unavailable": @"重置时间不可用",
+                @"reset.in.at": @"%@后重置 %@",
+                @"auth.missing_token": @"auth.json 缺少 tokens.access_token",
+                @"auth.expired": @"Codex 授权已过期或不可用 (HTTP %ld)",
+                @"usage.http_failed": @"额度请求失败 (HTTP %ld)",
+                @"usage.not_json": @"额度接口返回不是 JSON",
+                @"prediction.collecting": @"正在积累规划数据",
+                @"prediction.collecting_detail": @"多刷新几次后，预测会更稳定。",
+                @"prediction.pace_empty": @"速度 --",
+                @"prediction.low": @"低置信度",
+                @"prediction.medium": @"中置信度",
+                @"prediction.high": @"高置信度",
+                @"prediction.no_trend": @"暂时没有消耗趋势",
+                @"prediction.no_trend_detail": @"7天额度增长还不够，暂时无法预测耗尽时间。",
+                @"prediction.pace_zero": @"速度 0%/小时",
+                @"prediction.early_empty": @"早期估算：%@后耗尽",
+                @"prediction.early_reset": @"早期估算：可撑到重置",
+                @"prediction.early_before_detail": @"仅基于当前周期；若保持此速度，约 %@ 耗尽。",
+                @"prediction.early_after_detail": @"仅基于当前周期；约 %@后耗尽，晚于本次重置。",
+                @"prediction.runout": @"7天额度 %@后耗尽",
+                @"prediction.lasts_reset": @"7天额度大概率可撑到重置",
+                @"prediction.before_detail": @"预计约 %@ 耗尽，早于当前重置时间。",
+                @"prediction.after_detail": @"按当前速度约 %@ 后耗尽，晚于本次重置。",
+                @"prediction.pace": @"速度 %.2f%%/小时",
+                @"burst.unknown": @"5小时压力未知",
+                @"burst.high": @"5小时压力高",
+                @"burst.moderate": @"5小时压力中",
+                @"burst.calm": @"5小时压力低",
+                @"dial.left": @"剩余",
+                @"quota.used": @"已用 %ld%%",
+                @"quota.no_data": @"无数据",
+                @"panel.planning": @"用量规划",
+                @"app.title": @"Codex 额度",
+                @"app.current_account": @"当前账号",
+                @"account.default": @"Codex 账号",
+                @"account.auth_refreshed": @"凭证刷新 %@",
+                @"window.fast": @"5小时窗口",
+                @"window.weekly": @"7天窗口",
+                @"button.refresh": @"刷新",
+                @"button.auth": @"凭证",
+                @"button.quit": @"退出",
+                @"status.sync": @"同步",
+                @"status.check": @"检查",
+                @"status.proxy": @"代理",
+                @"status.live": @"在线",
+                @"footer.updated": @"已更新 %@%@",
+                @"footer.via_proxy": @"，代理",
+                @"footer.reading": @"正在读取 Codex 额度",
+                @"footer.waiting": @"等待数据",
+                @"error.unable_auth": @"无法读取 Codex auth.json",
+                @"error.unable_auth_short": @"无法读取授权",
+            },
+        };
+    });
+    NSDictionary *table = tables[AppUsesChinese() ? @"zh" : @"en"];
+    return table[key] ?: tables[@"en"][key] ?: key;
+}
+
 static NSDate *DateFromEpoch(id value) {
     NSNumber *number = CleanNumber(value);
     if (!number) return nil;
@@ -37,12 +159,17 @@ static NSDate *DateFromEpoch(id value) {
 static NSString *DurationText(NSTimeInterval seconds) {
     seconds = fmax(0, seconds);
     NSInteger minutes = (NSInteger)llround(seconds / 60.0);
-    if (minutes < 60) return [NSString stringWithFormat:@"%ldm", (long)MAX(1, minutes)];
+    BOOL zh = AppUsesChinese();
+    if (minutes < 60) return zh ? [NSString stringWithFormat:@"%ld分钟", (long)MAX(1, minutes)] : [NSString stringWithFormat:@"%ldm", (long)MAX(1, minutes)];
     NSInteger hours = minutes / 60;
     NSInteger remMinutes = minutes % 60;
-    if (hours < 24) return remMinutes ? [NSString stringWithFormat:@"%ldh %ldm", (long)hours, (long)remMinutes] : [NSString stringWithFormat:@"%ldh", (long)hours];
+    if (hours < 24) {
+        if (zh) return remMinutes ? [NSString stringWithFormat:@"%ld小时%ld分钟", (long)hours, (long)remMinutes] : [NSString stringWithFormat:@"%ld小时", (long)hours];
+        return remMinutes ? [NSString stringWithFormat:@"%ldh %ldm", (long)hours, (long)remMinutes] : [NSString stringWithFormat:@"%ldh", (long)hours];
+    }
     NSInteger days = hours / 24;
     NSInteger remHours = hours % 24;
+    if (zh) return remHours ? [NSString stringWithFormat:@"%ld天%ld小时", (long)days, (long)remHours] : [NSString stringWithFormat:@"%ld天", (long)days];
     return remHours ? [NSString stringWithFormat:@"%ldd %ldh", (long)days, (long)remHours] : [NSString stringWithFormat:@"%ldd", (long)days];
 }
 
@@ -61,7 +188,7 @@ static NSString *ShortDateTime(NSDate *date) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         formatter = [NSDateFormatter new];
-        formatter.dateFormat = @"MMM d HH:mm";
+        formatter.dateFormat = AppUsesChinese() ? @"M月d日 HH:mm" : @"MMM d HH:mm";
     });
     return [formatter stringFromDate:date];
 }
@@ -77,8 +204,8 @@ static NSString *NowClockText(void) {
 }
 
 static NSString *ResetText(NSDate *date) {
-    if (!date) return @"Reset time unavailable";
-    return [NSString stringWithFormat:@"Reset in %@ at %@", DurationText([date timeIntervalSinceNow]), ClockText(date)];
+    if (!date) return L(@"reset.unavailable");
+    return [NSString stringWithFormat:L(@"reset.in.at"), DurationText([date timeIntervalSinceNow]), ClockText(date)];
 }
 
 static NSData *Base64URLDecode(NSString *value) {
@@ -188,7 +315,7 @@ static NSDate *ParseISODate(NSString *value) {
     NSDictionary *tokens = json[@"tokens"];
     NSString *access = CleanString(tokens[@"access_token"]);
     if (!access) {
-        if (error) *error = [NSError errorWithDomain:ErrorDomain code:2 userInfo:@{NSLocalizedDescriptionKey: @"auth.json is missing tokens.access_token"}];
+        if (error) *error = [NSError errorWithDomain:ErrorDomain code:2 userInfo:@{NSLocalizedDescriptionKey: L(@"auth.missing_token")}];
         return nil;
     }
 
@@ -290,8 +417,8 @@ static QuotaWindow *BuildWindow(NSDictionary *raw, double fallbackSeconds, NSStr
         NSInteger status = [(NSHTTPURLResponse *)response statusCode];
         if (status < 200 || status >= 300) {
             NSString *message = (status == 401 || status == 403)
-                ? [NSString stringWithFormat:@"Codex auth is expired or not accepted (HTTP %ld)", (long)status]
-                : [NSString stringWithFormat:@"Usage request failed with HTTP %ld", (long)status];
+                ? [NSString stringWithFormat:L(@"auth.expired"), (long)status]
+                : [NSString stringWithFormat:L(@"usage.http_failed"), (long)status];
             completion(nil, [NSError errorWithDomain:ErrorDomain code:status userInfo:@{NSLocalizedDescriptionKey: message}]);
             [session finishTasksAndInvalidate];
             return;
@@ -299,7 +426,7 @@ static QuotaWindow *BuildWindow(NSDictionary *raw, double fallbackSeconds, NSStr
 
         NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
         if (![json isKindOfClass:NSDictionary.class]) {
-            completion(nil, error ?: [NSError errorWithDomain:ErrorDomain code:3 userInfo:@{NSLocalizedDescriptionKey: @"Usage response was not JSON"}]);
+            completion(nil, error ?: [NSError errorWithDomain:ErrorDomain code:3 userInfo:@{NSLocalizedDescriptionKey: L(@"usage.not_json")}]);
             [session finishTasksAndInvalidate];
             return;
         }
@@ -402,11 +529,11 @@ static QuotaWindow *BuildWindow(NSDictionary *raw, double fallbackSeconds, NSStr
 
 - (Prediction *)predictionForSnapshot:(QuotaSnapshot *)snapshot accountKey:(NSString *)accountKey {
     Prediction *prediction = [Prediction new];
-    prediction.headline = @"Collecting planning data";
-    prediction.detail = @"A few refreshes will make the forecast steadier.";
-    prediction.pace = @"Pace --";
+    prediction.headline = L(@"prediction.collecting");
+    prediction.detail = L(@"prediction.collecting_detail");
+    prediction.pace = L(@"prediction.pace_empty");
     prediction.burst = [self burstTextForSnapshot:snapshot];
-    prediction.confidence = @"Low confidence";
+    prediction.confidence = L(@"prediction.low");
 
     if (!snapshot.secondary) return prediction;
 
@@ -446,10 +573,10 @@ static QuotaWindow *BuildWindow(NSDictionary *raw, double fallbackSeconds, NSStr
     }
 
     if (rate <= 0) {
-        prediction.headline = @"No burn trend yet";
-        prediction.detail = @"7d usage has not increased enough to project depletion.";
-        prediction.pace = @"Pace 0%/h";
-        prediction.confidence = @"Low confidence";
+        prediction.headline = L(@"prediction.no_trend");
+        prediction.detail = L(@"prediction.no_trend_detail");
+        prediction.pace = L(@"prediction.pace_zero");
+        prediction.confidence = L(@"prediction.low");
         return prediction;
     }
 
@@ -459,21 +586,21 @@ static QuotaWindow *BuildWindow(NSDictionary *raw, double fallbackSeconds, NSStr
     BOOL beforeReset = snapshot.secondary.resetAt && [projected compare:snapshot.secondary.resetAt] == NSOrderedAscending;
     BOOL earlyEstimate = usedFallback;
     if (earlyEstimate) {
-        prediction.headline = beforeReset ? [NSString stringWithFormat:@"Early estimate: empty in %@", duration] : @"Early estimate: lasts through reset";
+        prediction.headline = beforeReset ? [NSString stringWithFormat:L(@"prediction.early_empty"), duration] : L(@"prediction.early_reset");
         prediction.detail = beforeReset
-            ? [NSString stringWithFormat:@"Based on the current cycle only; empty around %@ if this pace holds.", ShortDateTime(projected)]
-            : [NSString stringWithFormat:@"Based on the current cycle only; empty in %@ after reset.", duration];
+            ? [NSString stringWithFormat:L(@"prediction.early_before_detail"), ShortDateTime(projected)]
+            : [NSString stringWithFormat:L(@"prediction.early_after_detail"), duration];
     } else {
-        prediction.headline = beforeReset ? [NSString stringWithFormat:@"7d runout in %@", duration] : @"7d likely lasts through reset";
+        prediction.headline = beforeReset ? [NSString stringWithFormat:L(@"prediction.runout"), duration] : L(@"prediction.lasts_reset");
         prediction.detail = beforeReset
-            ? [NSString stringWithFormat:@"Projected empty around %@, before the current reset.", ShortDateTime(projected)]
-            : [NSString stringWithFormat:@"At this pace, empty in %@, after the current reset.", duration];
+            ? [NSString stringWithFormat:L(@"prediction.before_detail"), ShortDateTime(projected)]
+            : [NSString stringWithFormat:L(@"prediction.after_detail"), duration];
     }
-    prediction.pace = [NSString stringWithFormat:@"Pace %.2f%%/h", rate];
+    prediction.pace = [NSString stringWithFormat:L(@"prediction.pace"), rate];
 
-    if (!usedFallback && rates.count >= 8) prediction.confidence = @"High confidence";
-    else if (!usedFallback && rates.count >= 3) prediction.confidence = @"Medium confidence";
-    else prediction.confidence = @"Low confidence";
+    if (!usedFallback && rates.count >= 8) prediction.confidence = L(@"prediction.high");
+    else if (!usedFallback && rates.count >= 3) prediction.confidence = L(@"prediction.medium");
+    else prediction.confidence = L(@"prediction.low");
     return prediction;
 }
 
@@ -505,10 +632,10 @@ static QuotaWindow *BuildWindow(NSDictionary *raw, double fallbackSeconds, NSStr
 }
 
 - (NSString *)burstTextForSnapshot:(QuotaSnapshot *)snapshot {
-    if (!snapshot.primary) return @"5h burst unknown";
-    if (snapshot.primary.remainingPercent < 15) return @"5h burst high";
-    if (snapshot.primary.remainingPercent < 40) return @"5h burst moderate";
-    return @"5h burst calm";
+    if (!snapshot.primary) return L(@"burst.unknown");
+    if (snapshot.primary.remainingPercent < 15) return L(@"burst.high");
+    if (snapshot.primary.remainingPercent < 40) return L(@"burst.moderate");
+    return L(@"burst.calm");
 }
 @end
 
@@ -552,7 +679,7 @@ static QuotaWindow *BuildWindow(NSDictionary *raw, double fallbackSeconds, NSStr
         dispatch_async(dispatch_get_main_queue(), ^{
             self->_refreshing = NO;
             self.snapshot.loading = NO;
-            self.snapshot.errorMessage = authError.localizedDescription ?: @"Unable to read Codex auth.json";
+            self.snapshot.errorMessage = authError.localizedDescription ?: L(@"error.unable_auth");
             if (self.onChange) self.onChange(self.snapshot);
         });
         return;
@@ -622,7 +749,7 @@ static NSColor *Color(CGFloat r, CGFloat g, CGFloat b, CGFloat a) {
     NSDictionary *top = @{NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightBold], NSForegroundColorAttributeName: [NSColor.whiteColor colorWithAlphaComponent:0.92], NSParagraphStyleAttributeName: style};
     NSDictionary *bottom = @{NSFontAttributeName: [NSFont systemFontOfSize:9 weight:NSFontWeightMedium], NSForegroundColorAttributeName: [NSColor.whiteColor colorWithAlphaComponent:0.42], NSParagraphStyleAttributeName: style};
     [self.label drawInRect:NSMakeRect(0, NSMidY(self.bounds) + 1, NSWidth(self.bounds), 16) withAttributes:top];
-    [@"left" drawInRect:NSMakeRect(0, NSMidY(self.bounds) - 13, NSWidth(self.bounds), 13) withAttributes:bottom];
+    [L(@"dial.left") drawInRect:NSMakeRect(0, NSMidY(self.bounds) - 13, NSWidth(self.bounds), 13) withAttributes:bottom];
 }
 @end
 
@@ -719,8 +846,8 @@ static NSTextField *Label(CGFloat size, NSFontWeight weight, NSColor *color, BOO
     _bar.value = (window.remainingPercent / 100.0);
     _bar.accent = accent;
     _remaining.stringValue = window ? [NSString stringWithFormat:@"%ld%%", (long)llround(window.remainingPercent)] : @"--%";
-    _used.stringValue = window ? [NSString stringWithFormat:@"%ld%% used", (long)llround(window.usedPercent)] : @"No data";
-    _reset.stringValue = window ? ResetText(window.resetAt) : @"Reset time unavailable";
+    _used.stringValue = window ? [NSString stringWithFormat:L(@"quota.used"), (long)llround(window.usedPercent)] : L(@"quota.no_data");
+    _reset.stringValue = window ? ResetText(window.resetAt) : L(@"reset.unavailable");
 }
 @end
 
@@ -739,7 +866,7 @@ static NSTextField *Label(CGFloat size, NSFontWeight weight, NSColor *color, BOO
     self = [super initWithFill:[NSColor.whiteColor colorWithAlphaComponent:0.085] border:[NSColor.whiteColor colorWithAlphaComponent:0.11]];
     if (!self) return nil;
     _title = Label(12, NSFontWeightSemibold, [NSColor.whiteColor colorWithAlphaComponent:0.58], NO);
-    _title.stringValue = @"Planning outlook";
+    _title.stringValue = L(@"panel.planning");
     _headline = Label(15, NSFontWeightBold, NSColor.whiteColor, NO);
     _detail = Label(11, NSFontWeightMedium, [NSColor.whiteColor colorWithAlphaComponent:0.55], NO);
     _pace = Label(11, NSFontWeightSemibold, [NSColor.whiteColor colorWithAlphaComponent:0.82], NO);
@@ -760,11 +887,11 @@ static NSTextField *Label(CGFloat size, NSFontWeight weight, NSColor *color, BOO
     _confidence.alignment = NSTextAlignmentRight;
 }
 - (void)update:(Prediction *)prediction {
-    _headline.stringValue = prediction.headline ?: @"Collecting planning data";
-    _detail.stringValue = prediction.detail ?: @"A few refreshes will make the forecast steadier.";
-    _pace.stringValue = prediction.pace ?: @"Pace --";
-    _burst.stringValue = prediction.burst ?: @"5h burst unknown";
-    _confidence.stringValue = prediction.confidence ?: @"Low confidence";
+    _headline.stringValue = prediction.headline ?: L(@"prediction.collecting");
+    _detail.stringValue = prediction.detail ?: L(@"prediction.collecting_detail");
+    _pace.stringValue = prediction.pace ?: L(@"prediction.pace_empty");
+    _burst.stringValue = prediction.burst ?: L(@"burst.unknown");
+    _confidence.stringValue = prediction.confidence ?: L(@"prediction.low");
 }
 @end
 
@@ -781,6 +908,7 @@ static NSColor *AccentForRemaining(double remaining) {
 
 @implementation QuotaPopoverView {
     QuotaViewModel *_model;
+    NSVisualEffectView *_glass;
     NSTextField *_plan;
     NSTextField *_status;
     NSTextField *_error;
@@ -798,13 +926,19 @@ static NSColor *AccentForRemaining(double remaining) {
     if (!self) return nil;
     _model = model;
     self.wantsLayer = YES;
-    self.layer.backgroundColor = Color(0.035, 0.05, 0.055, 0.98).CGColor;
+    self.layer.backgroundColor = NSColor.clearColor.CGColor;
+    _glass = [[NSVisualEffectView alloc] initWithFrame:self.bounds];
+    _glass.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    _glass.material = NSVisualEffectMaterialPopover;
+    _glass.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    _glass.state = NSVisualEffectStateActive;
+    [self addSubview:_glass];
     [self build];
     return self;
 }
 - (void)build {
     NSTextField *title = Label(21, NSFontWeightSemibold, NSColor.whiteColor, NO);
-    title.stringValue = @"Codex Quota";
+    title.stringValue = L(@"app.title");
     title.frame = NSMakeRect(72, 512, 180, 25);
     [self addSubview:title];
     _plan = Label(11, NSFontWeightMedium, [NSColor.whiteColor colorWithAlphaComponent:0.56], NO);
@@ -815,7 +949,7 @@ static NSColor *AccentForRemaining(double remaining) {
     iconBox.frame = NSMakeRect(18, 494, 42, 42);
     [self addSubview:iconBox];
     NSImageView *icon = [[NSImageView alloc] initWithFrame:NSMakeRect(10, 10, 22, 22)];
-    icon.image = [NSImage imageWithSystemSymbolName:@"gauge.with.needle" accessibilityDescription:@"Codex quota"];
+    icon.image = [NSImage imageWithSystemSymbolName:@"gauge.with.needle" accessibilityDescription:L(@"app.title")];
     icon.contentTintColor = Color(0.28, 0.86, 0.78, 1);
     [iconBox addSubview:icon];
 
@@ -844,7 +978,7 @@ static NSColor *AccentForRemaining(double remaining) {
     _accountSub.frame = NSMakeRect(44, 17, 230, 16);
     _accountSub.lineBreakMode = NSLineBreakByTruncatingMiddle;
     NSImageView *person = [[NSImageView alloc] initWithFrame:NSMakeRect(12, 22, 24, 24)];
-    person.image = [NSImage imageWithSystemSymbolName:@"person.crop.circle" accessibilityDescription:@"Account"];
+    person.image = [NSImage imageWithSystemSymbolName:@"person.crop.circle" accessibilityDescription:L(@"account.default")];
     person.contentTintColor = [NSColor.whiteColor colorWithAlphaComponent:0.70];
     [accountPanel addSubview:person];
     [accountPanel addSubview:_account];
@@ -858,10 +992,10 @@ static NSColor *AccentForRemaining(double remaining) {
     [accountPanel addSubview:_authMode];
     [self addSubview:accountPanel];
 
-    _primary = [[QuotaRowView alloc] initWithTitle:@"Fast window" fallback:@"5h"];
+    _primary = [[QuotaRowView alloc] initWithTitle:L(@"window.fast") fallback:@"5h"];
     _primary.frame = NSMakeRect(18, 300, 348, 104);
     [self addSubview:_primary];
-    _secondary = [[QuotaRowView alloc] initWithTitle:@"Weekly window" fallback:@"7d"];
+    _secondary = [[QuotaRowView alloc] initWithTitle:L(@"window.weekly") fallback:@"7d"];
     _secondary.frame = NSMakeRect(18, 184, 348, 104);
     [self addSubview:_secondary];
     _prediction = [PredictionPanelView new];
@@ -871,9 +1005,9 @@ static NSColor *AccentForRemaining(double remaining) {
     _footer = Label(11, NSFontWeightMedium, [NSColor.whiteColor colorWithAlphaComponent:0.48], NO);
     _footer.frame = NSMakeRect(18, 47, 210, 16);
     [self addSubview:_footer];
-    [self addSubview:[self button:@"Refresh" symbol:@"arrow.clockwise" frame:NSMakeRect(18, 14, 88, 28) action:@selector(refreshClicked)]];
-    [self addSubview:[self button:@"Auth" symbol:@"folder" frame:NSMakeRect(114, 14, 72, 28) action:@selector(openAuthClicked)]];
-    [self addSubview:[self button:@"Quit" symbol:@"power" frame:NSMakeRect(294, 14, 72, 28) action:@selector(quitClicked)]];
+    [self addSubview:[self button:L(@"button.refresh") symbol:@"arrow.clockwise" frame:NSMakeRect(18, 14, 88, 28) action:@selector(refreshClicked)]];
+    [self addSubview:[self button:L(@"button.auth") symbol:@"folder" frame:NSMakeRect(114, 14, 72, 28) action:@selector(openAuthClicked)]];
+    [self addSubview:[self button:L(@"button.quit") symbol:@"power" frame:NSMakeRect(294, 14, 72, 28) action:@selector(quitClicked)]];
 }
 - (NSButton *)button:(NSString *)title symbol:(NSString *)symbol frame:(NSRect)frame action:(SEL)action {
     NSButton *button = [NSButton buttonWithTitle:title target:self action:action];
@@ -891,21 +1025,17 @@ static NSColor *AccentForRemaining(double remaining) {
     return button;
 }
 - (void)update:(QuotaSnapshot *)snapshot {
-    _plan.stringValue = snapshot.plan.uppercaseString ?: @"CURRENT ACCOUNT";
-    _status.stringValue = snapshot.loading ? @"SYNC" : (snapshot.errorMessage ? @"CHECK" : (snapshot.usedProxy ? @"PROXY" : @"LIVE"));
+    _plan.stringValue = snapshot.plan.uppercaseString ?: L(@"app.current_account");
+    _status.stringValue = snapshot.loading ? L(@"status.sync") : (snapshot.errorMessage ? L(@"status.check") : (snapshot.usedProxy ? L(@"status.proxy") : L(@"status.live")));
     _errorPanel.hidden = snapshot.errorMessage.length == 0;
     _error.stringValue = snapshot.errorMessage ?: @"";
-    _account.stringValue = snapshot.email ?: @"Codex account";
-    _accountSub.stringValue = snapshot.authLastRefresh ? [NSString stringWithFormat:@"Auth refreshed %@", ShortDateTime(snapshot.authLastRefresh)] : (snapshot.accountId ?: snapshot.authPath);
+    _account.stringValue = snapshot.email ?: L(@"account.default");
+    _accountSub.stringValue = snapshot.authLastRefresh ? [NSString stringWithFormat:L(@"account.auth_refreshed"), ShortDateTime(snapshot.authLastRefresh)] : (snapshot.accountId ?: snapshot.authPath);
     _authMode.stringValue = (snapshot.authMode ?: @"chatgpt").uppercaseString;
     [_primary updateWithWindow:snapshot.primary accent:AccentForRemaining(snapshot.primary ? snapshot.primary.remainingPercent : 0)];
     [_secondary updateWithWindow:snapshot.secondary accent:AccentForRemaining(snapshot.secondary ? snapshot.secondary.remainingPercent : 0)];
     [_prediction update:snapshot.prediction];
-    _footer.stringValue = snapshot.lastUpdated ? [NSString stringWithFormat:@"Updated %@%@", NowClockText(), snapshot.usedProxy ? @" via proxy" : @""] : (snapshot.loading ? @"Reading Codex quota" : @"Waiting for data");
-}
-- (void)drawRect:(NSRect)dirtyRect {
-    NSGradient *gradient = [[NSGradient alloc] initWithColors:@[Color(0.035, 0.05, 0.055, 0.98), Color(0.035, 0.085, 0.090, 0.92), Color(0.13, 0.085, 0.04, 0.82)]];
-    [gradient drawInRect:self.bounds angle:-32];
+    _footer.stringValue = snapshot.lastUpdated ? [NSString stringWithFormat:L(@"footer.updated"), NowClockText(), snapshot.usedProxy ? L(@"footer.via_proxy") : @""] : (snapshot.loading ? L(@"footer.reading") : L(@"footer.waiting"));
 }
 - (void)refreshClicked { [_model refresh]; }
 - (void)openAuthClicked { [NSWorkspace.sharedWorkspace activateFileViewerSelectingURLs:@[[NSURL fileURLWithPath:_model.snapshot.authPath]]]; }
@@ -926,11 +1056,11 @@ static NSColor *AccentForRemaining(double remaining) {
     _model = [QuotaViewModel new];
     _statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
     NSStatusBarButton *button = _statusItem.button;
-    button.image = [NSImage imageWithSystemSymbolName:@"gauge.with.needle" accessibilityDescription:@"Codex quota"];
+    button.image = [NSImage imageWithSystemSymbolName:@"gauge.with.needle" accessibilityDescription:L(@"app.title")];
     button.imagePosition = NSImageLeading;
     button.target = self;
     button.action = @selector(togglePopover:);
-    button.toolTip = @"Codex quota";
+    button.toolTip = L(@"app.title");
 
     _popover = [NSPopover new];
     _popover.behavior = NSPopoverBehaviorTransient;
@@ -982,7 +1112,7 @@ static int RunOnce(void) {
     NSError *error = nil;
     AuthInfo *auth = [authStore readAuth:&error];
     if (!auth) {
-        fprintf(stderr, "error: %s\n", (error.localizedDescription ?: @"Unable to read auth").UTF8String);
+        fprintf(stderr, "error: %s\n", (error.localizedDescription ?: L(@"error.unable_auth_short")).UTF8String);
         return 1;
     }
 

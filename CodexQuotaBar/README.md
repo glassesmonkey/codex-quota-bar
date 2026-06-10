@@ -14,6 +14,8 @@ History records contain quota percentages, reset timestamps, and a hashed accoun
 
 The planning forecast uses the 7-day usage trend for depletion timing and the 5-hour window as a burst-pressure signal. It ignores reset drops, filters implausible spikes, weights recent samples more heavily, and falls back to a low-confidence current-cycle estimate until enough history exists.
 
+The popover uses the native macOS `NSVisualEffectView` popover material for frosted-glass styling. Visible UI copy automatically switches between Chinese and English based on the current system language.
+
 ## Build
 
 ```sh
