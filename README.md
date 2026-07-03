@@ -15,6 +15,7 @@ Native macOS menu bar app for watching Codex quota usage from the local Codex se
 - Shows 5-hour and 7-day remaining quota directly in the macOS menu bar.
 - Uses an AppKit status item shell with a SwiftUI panel: left-click shows quota, right-click opens the management menu.
 - Shows account, plan, reset times, refresh state, and quota planning details.
+- Shows available reset credits and each credit's local expiry time.
 - Includes a current-cycle 7-day usage chart with a `Used %` y-axis.
 - Supports an "Open at login" toggle in the right-click menu through the native macOS login item API.
 - Ships with an original transparent app icon in the release bundle.
@@ -26,6 +27,7 @@ The app reads the current Codex access token and account id from `~/.codex/auth.
 
 ```text
 https://chatgpt.com/backend-api/wham/usage
+https://chatgpt.com/backend-api/wham/rate-limit-reset-credits
 ```
 
 Local quota history is stored at:
@@ -34,7 +36,7 @@ Local quota history is stored at:
 ~/Library/Application Support/CodexQuotaBar/usage-history.json
 ```
 
-History records contain quota percentages, reset timestamps, and a hashed account key. They do not store Codex tokens.
+History records contain quota percentages, reset timestamps, and a hashed account key. They do not store Codex tokens, reset credit ids, cookies, or raw API responses.
 
 ### Build
 
@@ -77,6 +79,7 @@ If the toggle reports that the login item cannot be found, move `CodexQuotaBar.a
 - 在菜单栏直接显示 5 小时额度和 7 天额度的剩余百分比。
 - 使用 AppKit 状态栏外壳和 SwiftUI 面板，左键查看额度，右键打开管理菜单。
 - 面板里显示账号、套餐、重置时间、刷新状态和用量规划。
+- 显示可用重置机会，以及每个机会的本地到期时间。
 - 提供本周期 7 天额度消耗图表，图表带有 `已用 %` 纵轴刻度。
 - 支持右键菜单里的“开机自启动”开关，使用 macOS 原生登录项能力。
 - 提供原创透明 app icon，并打包进 release app bundle。
@@ -88,6 +91,7 @@ If the toggle reports that the login item cannot be found, move `CodexQuotaBar.a
 
 ```text
 https://chatgpt.com/backend-api/wham/usage
+https://chatgpt.com/backend-api/wham/rate-limit-reset-credits
 ```
 
 本地历史记录保存到：
@@ -96,7 +100,7 @@ https://chatgpt.com/backend-api/wham/usage
 ~/Library/Application Support/CodexQuotaBar/usage-history.json
 ```
 
-历史记录只保存额度百分比、重置时间和哈希后的账号 key，不保存 Codex token。
+历史记录只保存额度百分比、重置时间和哈希后的账号 key，不保存 Codex token、重置机会 id、cookie 或原始接口响应。
 
 ### 构建
 

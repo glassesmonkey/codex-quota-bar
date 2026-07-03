@@ -258,9 +258,18 @@ private struct UsageResult {
     var usedProxy = false
 }
 
+private func fetchResetCreditsSnapshot(client: ResetCreditsClient, auth: AuthInfo) async -> ResetCreditsSnapshot {
+    do {
+        return try await client.fetch(accessToken: auth.accessToken, accountId: auth.accountId)
+    } catch {
+        return ResetCreditsSnapshot(errorMessage: error.localizedDescription)
+    }
+}
+
 private struct QuotaSnapshot {
     var primary: QuotaWindow?
     var secondary: QuotaWindow?
+    var resetCredits = ResetCreditsSnapshot()
     var prediction = Prediction()
     var weeklyHistory: [UsageHistoryPoint] = []
     var plan: String?
@@ -631,6 +640,7 @@ private final class QuotaViewModel: ObservableObject {
     @Published var snapshot = QuotaSnapshot()
     private let authStore = AuthStore()
     private let usageClient = UsageClient()
+    private let resetCreditsClient = ResetCreditsClient()
     private let historyStore = HistoryStore()
     private var refreshing = false
     private var timer: Timer?
@@ -654,9 +664,11 @@ private final class QuotaViewModel: ObservableObject {
             do {
                 let auth = try authStore.readAuth()
                 let result = try await usageClient.fetch(auth: auth)
+                let resetCredits = await fetchResetCreditsSnapshot(client: resetCreditsClient, auth: auth)
                 var next = QuotaSnapshot()
                 next.primary = result.primary
                 next.secondary = result.secondary
+                next.resetCredits = resetCredits
                 next.plan = result.plan
                 next.authPath = auth.path.path
                 next.authMode = auth.authMode
@@ -781,13 +793,14 @@ private struct QuotaMenuView: View {
         if let date = model.snapshot.authLastRefresh {
             return String(format: localized("account.auth_refreshed"), shortDateTime(date))
         }
-        return model.snapshot.accountId ?? localized("app.subtitle")
+        return localized("app.subtitle")
     }
 
     private var overview: some View {
         VStack(spacing: 8) {
             UsageWindowPanel(title: localized("window.fast"), window: model.snapshot.primary)
             UsageWindowPanel(title: localized("window.weekly"), window: model.snapshot.secondary)
+            ResetCreditsPanel(snapshot: model.snapshot.resetCredits)
             PredictionPanel(prediction: model.snapshot.prediction)
         }
     }
@@ -1136,6 +1149,7 @@ private struct ChartCanvas: View {
 private func runOnce() -> Int32 {
     let authStore = AuthStore()
     let usageClient = UsageClient()
+    let resetCreditsClient = ResetCreditsClient()
     let historyStore = HistoryStore()
     let semaphore = DispatchSemaphore(value: 0)
     var exitCode: Int32 = 1
@@ -1143,9 +1157,11 @@ private func runOnce() -> Int32 {
         do {
             let auth = try authStore.readAuth()
             let result = try await usageClient.fetch(auth: auth)
+            let resetCredits = await fetchResetCreditsSnapshot(client: resetCreditsClient, auth: auth)
             var snapshot = QuotaSnapshot()
             snapshot.primary = result.primary
             snapshot.secondary = result.secondary
+            snapshot.resetCredits = resetCredits
             snapshot.plan = result.plan
             snapshot.authPath = auth.path.path
             snapshot.authMode = auth.authMode
@@ -1159,9 +1175,17 @@ private func runOnce() -> Int32 {
             snapshot.prediction = historyStore.prediction(snapshot: snapshot, accountKey: key)
             print("ok")
             print("plan: \(snapshot.plan ?? "-")")
-            print("account: \(snapshot.email ?? snapshot.accountId ?? "-")")
+            print("account: \(localized("account.default"))")
             print("primary: \(snapshot.primary?.label ?? "-") remaining \(Int((snapshot.primary?.remainingPercent ?? 0).rounded()))%")
             print("secondary: \(snapshot.secondary?.label ?? "-") remaining \(Int((snapshot.secondary?.remainingPercent ?? 0).rounded()))%")
+            if let resetCreditsError = snapshot.resetCredits.errorMessage {
+                print("reset_credits_error: \(resetCreditsError)")
+            } else {
+                print("reset_credits: available_count \(snapshot.resetCredits.availableCount)")
+                for credit in snapshot.resetCredits.credits {
+                    print("reset_credit: status \(credit.status) | title \(credit.title) | granted \(resetCreditLocalDateTime(credit.grantedAt)) | expires \(resetCreditLocalDateTime(credit.expiresAt))")
+                }
+            }
             print("forecast: \(snapshot.prediction.headline) | \(snapshot.prediction.pace) | \(snapshot.prediction.confidence) | samples \(snapshot.prediction.sampleCount)")
             print("history: \(historyStore.fileURL.path)")
             exitCode = 0
