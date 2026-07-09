@@ -73,6 +73,7 @@ private func localized(_ key: String) -> String {
         "auth.expired": "Codex auth is expired or not accepted (HTTP %ld)",
         "usage.http_failed": "Usage request failed with HTTP %ld",
         "usage.not_json": "Usage response was not JSON",
+        "usage.missing_fields": "Usage response is missing required quota fields",
         "error.unable_auth": "Unable to read Codex auth.json",
     ]
     let zh: [String: String] = [
@@ -137,6 +138,7 @@ private func localized(_ key: String) -> String {
         "auth.expired": "Codex 授权已过期或不可用 (HTTP %ld)",
         "usage.http_failed": "额度请求失败 (HTTP %ld)",
         "usage.not_json": "额度接口返回不是 JSON",
+        "usage.missing_fields": "额度接口缺少必要字段",
         "error.unable_auth": "无法读取 Codex auth.json",
     ]
     return (usesChinese() ? zh : en)[key] ?? en[key] ?? key
@@ -425,8 +427,12 @@ private final class UsageClient {
         }
 
         var result = UsageResult()
-        result.primary = buildWindow(rateLimit["primary_window"] as? [String: Any], fallbackSeconds: 18_000, fallbackLabel: "5h")
-        result.secondary = buildWindow(rateLimit["secondary_window"] as? [String: Any], fallbackSeconds: 604_800, fallbackLabel: "7d")
+        guard let primaryRaw = rateLimit["primary_window"] as? [String: Any],
+              let secondaryRaw = rateLimit["secondary_window"] as? [String: Any] else {
+            throw AppError.message(localized("usage.missing_fields"))
+        }
+        result.primary = try buildWindow(primaryRaw, fallbackSeconds: 18_000, fallbackLabel: "5h")
+        result.secondary = try buildWindow(secondaryRaw, fallbackSeconds: 604_800, fallbackLabel: "7d")
         result.plan = cleanString(json["plan_type"])
         if let credits = json["credits"] as? [String: Any], let balance = cleanNumber(credits["balance"]) {
             let balanceText = String(format: "$%.2f", balance)
@@ -436,10 +442,12 @@ private final class UsageClient {
         return result
     }
 
-    private func buildWindow(_ raw: [String: Any]?, fallbackSeconds: Double, fallbackLabel: String) -> QuotaWindow? {
-        guard let raw else { return nil }
+    private func buildWindow(_ raw: [String: Any], fallbackSeconds: Double, fallbackLabel: String) throws -> QuotaWindow {
         let seconds = cleanNumber(raw["limit_window_seconds"]) ?? fallbackSeconds
-        let used = clampPercent(cleanNumber(raw["used_percent"]) ?? 0)
+        guard let usedRaw = cleanNumber(raw["used_percent"]) else {
+            throw AppError.message(localized("usage.missing_fields"))
+        }
+        let used = clampPercent(usedRaw)
         let resetRaw = cleanNumber(raw["reset_at"])
         let reset = resetRaw.map { Date(timeIntervalSince1970: $0 > 10_000_000_000 ? $0 / 1000 : $0) }
         return QuotaWindow(
