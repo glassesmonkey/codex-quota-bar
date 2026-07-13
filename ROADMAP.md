@@ -27,6 +27,7 @@
 
 ## 最近验证
 
+- 2026-07-13：生成 `outputs/CodexQuotaBar-macos-universal-v0.1.8.zip`，压缩完整性、应用签名及 `x86_64 arm64` 架构验证通过。
 - 2026-07-13：`./Scripts/build.sh` 通过，生成 v0.1.8 通用架构 `outputs/CodexQuotaBar.app`。
 - 2026-07-13：live `--once` 通过；仅返回的 7 天窗口被识别为周额度，历史采样和预测恢复工作。
 - 2026-07-13：首次 live 验证确认周窗口已迁移至 `primary_window`，不能继续依赖字段位置判断窗口语义。
