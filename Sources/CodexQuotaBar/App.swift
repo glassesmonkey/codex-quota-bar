@@ -232,7 +232,7 @@ private struct Prediction {
     var headline = localized("prediction.collecting")
     var detail = localized("prediction.collecting_detail")
     var pace = localized("prediction.pace_empty")
-    var burst = localized("burst.unknown")
+    var burst: String?
     var confidence = localized("prediction.low")
     var sampleCount = 0
 }
@@ -427,12 +427,29 @@ private final class UsageClient {
         }
 
         var result = UsageResult()
-        guard let primaryRaw = rateLimit["primary_window"] as? [String: Any],
-              let secondaryRaw = rateLimit["secondary_window"] as? [String: Any] else {
+        let primaryRaw = rateLimit["primary_window"] as? [String: Any]
+        let secondaryRaw = rateLimit["secondary_window"] as? [String: Any]
+        guard primaryRaw != nil || secondaryRaw != nil else {
             throw AppError.message(localized("usage.missing_fields"))
         }
-        result.primary = try buildWindow(primaryRaw, fallbackSeconds: 18_000, fallbackLabel: "5h")
-        result.secondary = try buildWindow(secondaryRaw, fallbackSeconds: 604_800, fallbackLabel: "7d")
+        var windows: [QuotaWindow] = []
+        if let primaryRaw {
+            windows.append(try buildWindow(primaryRaw, fallbackSeconds: 18_000, fallbackLabel: "5h"))
+        }
+        if let secondaryRaw {
+            windows.append(try buildWindow(secondaryRaw, fallbackSeconds: 604_800, fallbackLabel: "7d"))
+        }
+        windows.sort { $0.windowSeconds < $1.windowSeconds }
+        if windows.count == 1 {
+            if windows[0].windowSeconds >= 86_400 {
+                result.secondary = windows[0]
+            } else {
+                result.primary = windows[0]
+            }
+        } else {
+            result.primary = windows.first
+            result.secondary = windows.last
+        }
         result.plan = cleanString(json["plan_type"])
         if let credits = json["credits"] as? [String: Any], let balance = cleanNumber(credits["balance"]) {
             let balanceText = String(format: "$%.2f", balance)
@@ -635,8 +652,8 @@ private final class HistoryStore {
         return elapsedHours < 1 ? 0 : secondary.usedPercent / elapsedHours
     }
 
-    private func burstText(_ snapshot: QuotaSnapshot) -> String {
-        guard let primary = snapshot.primary else { return localized("burst.unknown") }
+    private func burstText(_ snapshot: QuotaSnapshot) -> String? {
+        guard let primary = snapshot.primary else { return nil }
         if primary.remainingPercent < 15 { return localized("burst.high") }
         if primary.remainingPercent < 40 { return localized("burst.moderate") }
         return localized("burst.calm")
@@ -699,19 +716,20 @@ private final class QuotaViewModel: ObservableObject {
     }
 
     var menuBarTitle: String {
-        if let primary = snapshot.primary, let secondary = snapshot.secondary {
-            return "\(primary.label) \(Int(primary.remainingPercent.rounded()))% | \(secondary.label) \(Int(secondary.remainingPercent.rounded()))%"
+        let windows = [snapshot.primary, snapshot.secondary].compactMap { window in
+            window.map { "\($0.label) \(Int($0.remainingPercent.rounded()))%" }
         }
+        if !windows.isEmpty { return windows.joined(separator: " | ") }
         if snapshot.loading { return "Codex ..." }
         if snapshot.errorMessage != nil { return "Codex !" }
         return "Codex --"
     }
 
     var menuBarMeterTitle: String {
-        guard let primary = snapshot.primary, let secondary = snapshot.secondary else {
-            return menuBarTitle
+        let windows = [snapshot.primary, snapshot.secondary].compactMap { window in
+            window.map { "\($0.label) \(Int($0.remainingPercent.rounded()))%" }
         }
-        return "\(primary.label) \(Int(primary.remainingPercent.rounded()))% · \(secondary.label) \(Int(secondary.remainingPercent.rounded()))%"
+        return windows.isEmpty ? menuBarTitle : windows.joined(separator: " · ")
     }
 }
 
@@ -806,8 +824,12 @@ private struct QuotaMenuView: View {
 
     private var overview: some View {
         VStack(spacing: 8) {
-            UsageWindowPanel(title: localized("window.fast"), window: model.snapshot.primary)
-            UsageWindowPanel(title: localized("window.weekly"), window: model.snapshot.secondary)
+            if model.snapshot.primary != nil {
+                UsageWindowPanel(title: localized("window.fast"), window: model.snapshot.primary)
+            }
+            if model.snapshot.secondary != nil {
+                UsageWindowPanel(title: localized("window.weekly"), window: model.snapshot.secondary)
+            }
             ResetCreditsPanel(snapshot: model.snapshot.resetCredits)
             PredictionPanel(prediction: model.snapshot.prediction)
         }
@@ -948,8 +970,10 @@ private struct PredictionPanel: View {
             HStack {
                 Text(prediction.pace)
                 Spacer()
-                Text(prediction.burst)
-                Spacer()
+                if let burst = prediction.burst {
+                    Text(burst)
+                    Spacer()
+                }
                 Text(prediction.confidence)
             }
             .font(.footnote.weight(.semibold))
@@ -1184,8 +1208,12 @@ private func runOnce() -> Int32 {
             print("ok")
             print("plan: \(snapshot.plan ?? "-")")
             print("account: \(localized("account.default"))")
-            print("primary: \(snapshot.primary?.label ?? "-") remaining \(Int((snapshot.primary?.remainingPercent ?? 0).rounded()))%")
-            print("secondary: \(snapshot.secondary?.label ?? "-") remaining \(Int((snapshot.secondary?.remainingPercent ?? 0).rounded()))%")
+            if let primary = snapshot.primary {
+                print("primary: \(primary.label) remaining \(Int(primary.remainingPercent.rounded()))%")
+            }
+            if let secondary = snapshot.secondary {
+                print("secondary: \(secondary.label) remaining \(Int(secondary.remainingPercent.rounded()))%")
+            }
             if let resetCreditsError = snapshot.resetCredits.errorMessage {
                 print("reset_credits_error: \(resetCreditsError)")
             } else {
