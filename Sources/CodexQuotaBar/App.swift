@@ -1270,8 +1270,16 @@ private final class StatusBarController: NSObject {
         button.target = self
         button.action = #selector(statusButtonClicked(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        button.image = NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: localized("app.title"))
-        button.image?.isTemplate = true
+        if let iconURL = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
+           let icon = NSImage(contentsOf: iconURL) {
+            icon.size = NSSize(width: 18, height: 18)
+            icon.isTemplate = true
+            icon.accessibilityDescription = localized("app.title")
+            button.image = icon
+        } else {
+            button.image = NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: localized("app.title"))
+            button.image?.isTemplate = true
+        }
         button.imagePosition = .imageLeading
         button.font = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .medium)
         updateStatusButton()
